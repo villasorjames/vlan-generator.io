@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VLAN Config Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f9f9f9;
+            color: #333;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #007BFF;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            font-weight: bold;
+            margin-bottom: 8px;
+            display: block;
+        }
+        input[type="number"], input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: center;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        button.generate {
+            background-color: #007BFF;
+            color: #fff;
+        }
+        button.generate:hover {
+            background-color: #0056b3;
+        }
+        button.download {
+            background-color: #28a745;
+            color: #fff;
+        }
+        button.download:hover {
+            background-color: #1e7e34;
+        }
+        button.copy {
+            background-color: #ffc107;
+            color: #fff;
+        }
+        button.copy:hover {
+            background-color: #e0a800;
+        }
+        textarea {
+            width: 100%;
+            height: 300px;
+            margin-top: 20px;
+            padding: 15px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-family: monospace;
+            background-color: #fefefe;
+            color: #333;
+            resize: none;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>VLAN Config Generator</h1>
+    <div class="form-group">
+        <label for="vlanCount">Number of VLANs:</label>
+        <input type="number" id="vlanCount" min="1" placeholder="Enter the number of VLANs" />
+    </div>
+    <div class="form-group">
+        <label for="bridgeName">Bridge Interface Name:</label>
+        <input type="text" id="bridgeName" placeholder="e.g., bridge.HS" />
+    </div>
+
+    <div class="buttons">
+        <button class="generate" onclick="generateConfig()">Generate Configuration</button>
+        <button class="download" onclick="downloadConfig()">Download Config</button>
+        <button class="copy" onclick="copyToClipboard()">Copy to Clipboard</button>
+    </div>
+
+    <textarea id="configOutput" readonly placeholder="Generated configuration will appear here..."></textarea>
+</div>
+
+<script>
+    function generateConfig() {
+        const vlanCount = document.getElementById('vlanCount').value;
+        const bridgeName = document.getElementById('bridgeName').value;
+        const output = document.getElementById('configOutput');
+
+        if (!vlanCount || !bridgeName) {
+            alert('Please fill in all fields.');
+            return;
+        }
+
+        let config = '';
+
+        for (let i = 1; i <= vlanCount; i++) {
+            const vlanId = 10 + i - 1;
+            const ipBase = `10.0.${vlanId}`;
+
+            config += `
+/interface vlan
+add interface=${bridgeName} name=vlan${vlanId} vlan-id=${vlanId}
+/ip pool
+add name=SUBV${vlanId} ranges=${ipBase}.2-${ipBase}.254
+/ip dhcp-server
+add address-pool=SUBV${vlanId} disabled=no interface=vlan${vlanId} name=dhcp${i}
+/ip hotspot
+add address-pool=SUBV${vlanId} addresses-per-mac=1 disabled=no interface=vlan${vlanId} name=Subvendo${i} profile=default
+/ip address
+add address=${ipBase}.1/24 interface=vlan${vlanId} network=${ipBase}.0
+/ip dhcp-server network
+add address=${ipBase}.0/24 gateway=${ipBase}.1
+/ip firewall nat
+add action=masquerade chain=srcnat comment="masquerade hotspot network" src-address=${ipBase}.0/24
+            `.trim() + '\n\n';
+        }
+
+        output.value = config;
+    }
+
+    function downloadConfig() {
+        const output = document.getElementById('configOutput').value;
+        if (!output) {
+            alert('No configuration to download. Generate it first.');
+            return;
+        }
+
+        const blob = new Blob([output], { type: 'text/plain' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'vlan.txt';
+        link.click();
+    }
+
+    function copyToClipboard() {
+        const output = document.getElementById('configOutput');
+        if (!output.value) {
+            alert('No configuration to copy. Generate it first.');
+            return;
+        }
+        output.select();
+        document.execCommand('copy');
+        alert('Configuration copied to clipboard!');
+    }
+</script>
+
+</body>
+</html>
